@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="HypoDiabetic Monitor: meal photo scanner, camera pulse check, label reader, post-meal walks and readings log for diabetes and blood pressure.">
+<meta name="theme-color" content="#0E7466">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>HypoDiabetic Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: mobile-first app shell, sticky tab rail, one column of instrument panels (max 760px) */
+:root{
+  --bg:#EEF3F1; --surface:#FFFFFF; --surface-2:#E3EBE8; --ink:#13211F; --muted:#5A6E6A; --line:#CBD8D4;
+  --accent:#0E7466; --accent-ink:#FFFFFF;
+  --gluco:#B86E06; --gluco-soft:#F8E9D2; --cardio:#B8323F; --cardio-soft:#F6DCDF;
+  --ok:#2E7D4F; --ok-soft:#DCEFE3; --warn:#A86A00; --warn-soft:#FBEBCB; --bad:#B42A36; --bad-soft:#F8DADD;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0D1514; --surface:#15201E; --surface-2:#1D2B28; --ink:#E3EEEB; --muted:#93A7A2; --line:#2B3B38;
+  --accent:#3FB8A5; --accent-ink:#06211D;
+  --gluco:#F0A63A; --gluco-soft:#3A2A12; --cardio:#F07583; --cardio-soft:#3E1C21;
+  --ok:#5FCB8C; --ok-soft:#173326; --warn:#F2B64A; --warn-soft:#3A2C10; --bad:#F27782; --bad-soft:#3F1A1F;
+  color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0D1514; --surface:#15201E; --surface-2:#1D2B28; --ink:#E3EEEB; --muted:#93A7A2; --line:#2B3B38;
+  --accent:#3FB8A5; --accent-ink:#06211D;
+  --gluco:#F0A63A; --gluco-soft:#3A2A12; --cardio:#F07583; --cardio-soft:#3E1C21;
+  --ok:#5FCB8C; --ok-soft:#173326; --warn:#F2B64A; --warn-soft:#3A2C10; --bad:#F27782; --bad-soft:#3F1A1F;
+  color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding-top:20px;flex-wrap:wrap}
+.brand{display:flex;flex-direction:column;gap:2px}
+.brand h1{font-family:var(--f-display);font-weight:700;font-size:30px;letter-spacing:-.02em;margin:0;line-height:1.05;text-wrap:balance}
+.brand h1 span{color:var(--accent)}
+.brand p{margin:0;color:var(--muted);font-size:13px}
+.cond{font-family:var(--f-mono);font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 10px;background:var(--surface)}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:8px;overflow-x:auto;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs .rail{display:flex;gap:4px;background:var(--surface-2);border-radius:12px;padding:4px;width:max-content;min-width:100%}
+nav.tabs a{flex:1;text-align:center;white-space:nowrap;text-decoration:none;color:var(--muted);font-weight:500;font-size:14px;padding:8px 12px;border-radius:9px}
+nav.tabs a[aria-current="page"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+nav.tabs a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+section.view{display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel h2{font-family:var(--f-display);font-weight:700;font-size:20px;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.panel h3{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0;font-weight:600}
+.sub{color:var(--muted);font-size:14px;margin:0;max-width:65ch}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--surface-2);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.stat .v{font-family:var(--f-mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
+.stat .v small{font-size:12px;color:var(--muted);margin-left:3px}
+.stat .n{font-size:12px;color:var(--muted)}
+.stat.g .v{color:var(--gluco)} .stat.c .v{color:var(--cardio)}
+button,.btn{font:inherit;font-weight:600;font-size:14px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:10px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;justify-content:center}
+button.primary,.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button.ghost{background:transparent}
+button:disabled{opacity:.55;cursor:not-allowed}
+button.sm{padding:6px 10px;font-size:13px}
+label.fld{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);flex:1;min-width:120px}
+input[type=number],input[type=text],input[type=datetime-local],select{font:inherit;font-size:15px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 10px;width:100%;font-family:var(--f-mono)}
+.drop{border:1.5px dashed var(--line);border-radius:12px;padding:22px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;background:var(--surface-2)}
+.drop.over{border-color:var(--accent)}
+.drop input[type=file]{display:none}
+.preview{max-width:100%;max-height:280px;border-radius:10px;object-fit:cover}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;font-family:var(--f-mono);text-transform:uppercase;letter-spacing:.04em}
+.chip.ok{background:var(--ok-soft);color:var(--ok)} .chip.warn{background:var(--warn-soft);color:var(--warn)} .chip.bad{background:var(--bad-soft);color:var(--bad)} .chip.mute{background:var(--surface-2);color:var(--muted)}
+.alert{display:grid;grid-template-columns:6px 1fr;gap:12px;border-radius:12px;background:var(--surface);border:1px solid var(--line);overflow:hidden}
+.alert .bar{background:var(--muted)}
+.alert.bad .bar{background:var(--bad)} .alert.warn .bar{background:var(--warn)} .alert.ok .bar{background:var(--ok)}
+.alert .body{padding:12px 14px 12px 0;display:flex;flex-direction:column;gap:4px;min-width:0}
+.alert .t{font-weight:600}
+.alert .d{font-size:14px;color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+.tbl{overflow-x:auto}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+td.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.banner{background:var(--warn-soft);color:var(--ink);border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-size:14px}
+.score{display:grid;grid-template-columns:120px 1fr;gap:16px;align-items:center}
+@media (max-width:420px){.score{grid-template-columns:1fr}}
+.ring{width:120px;height:120px}
+.ring text{font-family:var(--f-mono)}
+.meter{height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:999px}
+.meter.g i{background:var(--gluco)} .meter.c i{background:var(--cardio)}
+.lbl-row{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);gap:8px}
+.lbl-row b{color:var(--ink);font-family:var(--f-mono);font-weight:500}
+.chart{width:100%;height:auto;display:block}
+.chart text{font-family:var(--f-mono);font-size:10px;fill:var(--muted)}
+.status{font-size:14px;color:var(--muted);min-height:1.4em}
+.status.err{color:var(--bad)}
+.items li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.items{list-style:none;padding:0;margin:0}
+.items li span:last-child{font-family:var(--f-mono);white-space:nowrap}
+.verdict{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.big{font-family:var(--f-display);font-size:26px;font-weight:700;letter-spacing:-.01em}
+.timer{font-family:var(--f-mono);font-size:44px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.foot{font-size:12px;color:var(--muted);text-align:center;max-width:60ch;margin:8px auto 0}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:3px}
+.seg button{border:none;background:transparent;padding:7px 12px;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+ol.steps{margin:0;padding-left:20px;font-size:14px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.spin{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+html{-webkit-text-size-adjust:100%}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+.foot a{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Hypo<span>Diabetic</span> Monitor</h1>
+      <p>Diabetes &amp; blood pressure companion: scan, walk, track.</p>
+    </div>
+    <span class="cond" id="condBadge">Diabetes + Hypertension</span>
+  </header>
+
+  <nav class="tabs" aria-label="Sections"><div class="rail">
+    <a href="#today" data-v="today">Today</a>
+    <a href="#plate" data-v="plate">Plate scan</a>
+    <a href="#pulse" data-v="pulse">Pulse scan</a>
+    <a href="#label" data-v="label">Label scan</a>
+    <a href="#steps" data-v="steps">Steps</a>
+    <a href="#log" data-v="log">Readings</a>
+  </div></nav>
+
+  <div id="exampleBanner" class="banner" hidden>
+    <span>You're seeing example entries so the app isn't empty. Your own entries replace them.</span>
+    <button class="sm" id="clearExamples">Clear examples</button>
+  </div>
+
+  <!-- TODAY -->
+  <section class="view" id="v-today">
+    <div id="walkCard"></div>
+    <div class="panel">
+      <h2>Spike &amp; Surge alerts</h2>
+      <div id="alerts" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+    <div class="panel">
+      <h3>Today</h3>
+      <div class="grid2" id="todayStats"></div>
+    </div>
+    <div class="panel">
+      <h2>Blood Vessel Health Score</h2>
+      <div class="score">
+        <svg class="ring" viewBox="0 0 120 120" id="ring" role="img" aria-label="Score"></svg>
+        <div style="display:flex;flex-direction:column;gap:10px" id="scoreParts"></div>
+      </div>
+      <p class="sub">A motivation score from your last 7 days: steps vs goal, sodium vs limit, and how many blood pressure readings were in target. It is not a clinical measure.</p>
+    </div>
+  </section>
+
+  <!-- PLATE -->
+  <section class="view" id="v-plate" hidden>
+    <div class="panel">
+      <h2>Visual Plate AI</h2>
+      <p class="sub">Take a photo of your plate. The app estimates carbs, glycemic load and sodium, then flags the meal as safe, moderate or spike-risk for your condition.</p>
+      <div class="drop" id="plateDrop">
+        <img id="platePrev" class="preview" alt="Meal photo" hidden>
+        <div class="row" style="justify-content:center">
+          <label class="btn primary" for="plateCam">Take photo</label>
+          <label class="btn" for="plateFile">Choose image</label>
+        </div>
+        <input type="file" id="plateCam" accept="image/*" capture="environment">
+        <input type="file" id="plateFile" accept="image/jpeg,image/png,image/webp,image/gif">
+        <span class="sub" style="font-size:13px">or drop an image here</span>
+      </div>
+      <label class="fld">What's on the plate? (optional, improves accuracy)
+        <input type="text" id="plateHint" placeholder="e.g. chicken biryani, raita, 1 roti">
+      </label>
+      <div class="row"><button class="primary" id="plateGo" disabled>Analyze meal</button><button class="ghost" id="plateStop" hidden>Stop</button></div>
+      <div class="status" id="plateStatus"></div>
+    </div>
+    <div class="panel" id="plateResult" hidden></div>
+    <div class="panel">
+      <h3>No photo? Log a meal by hand</h3>
+      <div class="row">
+        <label class="fld">Meal<input type="text" id="mName" placeholder="Lunch"></label>
+        <label class="fld">Carbs (g)<input type="number" id="mCarbs" min="0" inputmode="decimal"></label>
+        <label class="fld">Sodium (mg)<input type="number" id="mSod" min="0" inputmode="decimal"></label>
+        <label class="fld">Glycemic load<input type="number" id="mGL" min="0" inputmode="decimal" placeholder="optional"></label>
+      </div>
+      <div class="row"><button id="mAdd">Log meal</button></div>
+    </div>
+  </section>
+
+  <!-- PULSE -->
+  <section class="view" id="v-pulse" hidden>
+    <div class="panel">
+      <h2>Pulse-Check Vision</h2>
+      <p class="sub">Heart rate from a short camera video, using photoplethysmography (PPG): tiny colour changes in skin as blood pulses.</p>
+      <div class="seg" role="group" aria-label="Scan mode">
+        <button id="modeFinger" aria-pressed="true">Fingertip (more accurate)</button>
+        <button id="modeFace" aria-pressed="false">Face</button>
+      </div>
+      <ol class="steps" id="pulseHow"></ol>
+      <div class="drop">
+        <div class="row" style="justify-content:center">
+          <label class="btn primary" for="pulseCam" id="pulseCamLbl">Record 20-second video</label>
+          <label class="btn" for="pulseFile">Choose video</label>
+        </div>
+        <input type="file" id="pulseCam" accept="video/*" capture="environment">
+        <input type="file" id="pulseFile" accept="video/*">
+      </div>
+      <div class="status" id="pulseStatus"></div>
+    </div>
+    <div class="panel" id="pulseResult" hidden></div>
+    <div class="panel">
+      <h3>About blood pressure from the camera</h3>
+      <p class="sub">Camera-only blood pressure estimates are still research-grade and can be off by a wide margin, so this app does not show one. For blood pressure trends, log readings from a validated cuff under Readings; the app charts them and uses them in alerts and your score.</p>
+    </div>
+  </section>
+
+  <!-- LABEL -->
+  <section class="view" id="v-label" hidden>
+    <div class="panel">
+      <h2>Label scanner</h2>
+      <p class="sub">Photograph a nutrition label or a medicine box/bottle. The app reads it and flags hidden sodium, added sugar, and common food interactions.</p>
+      <div class="drop" id="labelDrop">
+        <img id="labelPrev" class="preview" alt="Label photo" hidden>
+        <div class="row" style="justify-content:center">
+          <label class="btn primary" for="labelCam">Take photo</label>
+          <label class="btn" for="labelFile">Choose image</label>
+        </div>
+        <input type="file" id="labelCam" accept="image/*" capture="environment">
+        <input type="file" id="labelFile" accept="image/jpeg,image/png,image/webp,image/gif">
+      </div>
+      <div class="row"><button class="primary" id="labelGo" disabled>Read label</button></div>
+      <div class="status" id="labelStatus"></div>
+    </div>
+    <div class="panel" id="labelResult" hidden></div>
+  </section>
+
+  <!-- STEPS -->
+  <section class="view" id="v-steps" hidden>
+    <div class="panel">
+      <h2>Kinetic Step Engine</h2>
+      <p class="sub">Steps are tied to your meals: a short walk soon after eating helps blunt the glucose rise, and regular movement through the day supports healthy blood pressure.</p>
+      <div class="grid2" id="stepStats"></div>
+      <div class="lbl-row"><span>Today vs goal</span><b id="stepPct"></b></div>
+      <div class="meter"><i id="stepBar" style="width:0"></i></div>
+    </div>
+    <div class="panel">
+      <h3>Walk timer</h3>
+      <div class="timer" id="timer">00:00</div>
+      <div class="row">
+        <button class="primary" id="walkStart">Start walk</button>
+        <button id="walkStop" disabled>Finish</button>
+      </div>
+      <p class="sub" id="walkNote">Tip: keep this page open while you walk.</p>
+      <div class="row" id="walkSave" hidden>
+        <label class="fld">Steps for this walk<input type="number" id="walkSteps" min="0"></label>
+        <button class="primary" id="walkSaveBtn">Save walk</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Add steps from your phone's health app</h3>
+      <div class="row">
+        <label class="fld">Date<input type="text" id="sDate" placeholder="YYYY-MM-DD"></label>
+        <label class="fld">Total steps that day<input type="number" id="sCount" min="0"></label>
+        <button id="sAdd" style="align-self:flex-end">Save</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Last 7 days</h3>
+      <div id="stepChart"></div>
+    </div>
+  </section>
+
+  <!-- LOG -->
+  <section class="view" id="v-log" hidden>
+    <div class="panel">
+      <h2>Log a reading</h2>
+      <div class="row">
+        <label class="fld">Glucose (<span class="gu">mg/dL</span>)<input type="number" id="gVal" step="0.1" min="0"></label>
+        <label class="fld">When<select id="gCtx"><option value="fasting">Fasting</option><option value="before">Before meal</option><option value="after">1–2 h after meal</option><option value="random">Random</option></select></label>
+        <button id="gAdd" style="align-self:flex-end">Add glucose</button>
+      </div>
+      <div class="row">
+        <label class="fld">Systolic (mmHg)<input type="number" id="bSys" min="0"></label>
+        <label class="fld">Diastolic (mmHg)<input type="number" id="bDia" min="0"></label>
+        <label class="fld">Pulse (bpm)<input type="number" id="bPul" min="0" placeholder="optional"></label>
+        <button id="bAdd" style="align-self:flex-end">Add BP</button>
+      </div>
+      <div class="status" id="logStatus"></div>
+    </div>
+    <div class="panel"><h3>Glucose trend</h3><div id="gChart"></div></div>
+    <div class="panel"><h3>Blood pressure trend</h3><div id="bChart"></div></div>
+    <div class="panel"><h3>History</h3><div class="tbl" id="history"></div></div>
+    <div class="panel">
+      <h3>Settings</h3>
+      <div class="row">
+        <label class="fld">Managing<select id="setCond"><option value="both">Diabetes + Hypertension</option><option value="diabetes">Diabetes</option><option value="hypertension">Hypertension</option></select></label>
+        <label class="fld">Glucose unit<select id="setUnit"><option value="mg">mg/dL</option><option value="mmol">mmol/L</option></select></label>
+        <label class="fld">Daily step goal<input type="number" id="setGoal" min="1000" step="500"></label>
+        <label class="fld">Daily sodium limit (mg)<input type="number" id="setSod" min="500" step="100"></label>
+      </div>
+      <div class="row"><button id="setSave">Save settings</button><span class="status" id="syncNote"></span></div>
+    </div>
+  </section>
+
+  <p class="foot">HypoDiabetic Monitor gives estimates to support everyday habits. It is not a medical device and does not replace your glucometer, BP cuff, doctor or pharmacist. If glucose is below 70 mg/dL with symptoms, or BP is 180/120 or higher, act on your care plan or seek urgent care. <a href="privacy.html">Privacy policy</a></p>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const dkey = (t) => { const d = new Date(t); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); };
+const today = () => dkey(Date.now());
+const HOUR = 3600e3, DAY = 86400e3;
+const fmtTime = (t) => new Date(t).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+const fmtDT = (t) => new Date(t).toLocaleString([], {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"});
+const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
+
+/* ---------- State ---------- */
+const LS_KEY = "glucovision.v1";
+const defaults = () => ({ meals:[], glucose:[], bp:[], hr:[], walks:[], labels:[], steps:{},
+  settings:{ condition:"both", unit:"mg", stepGoal:7000, sodiumLimit:2000 } });
+
+function exampleState(){
+  const s = defaults(), now = Date.now();
+  const E = {example:true};
+  s.meals.push({id:uid(), t: now - 50*60e3, name:"Chicken biryani with raita", carbs:78, gl:34, sodium:1180, sugar:4, verdict:"spike-risk", items:[{name:"Chicken biryani",portion:"1.5 cups",carbs:70},{name:"Raita",portion:"½ cup",carbs:8}], ...E});
+  s.meals.push({id:uid(), t: now - 6*HOUR, name:"Eggs, whole-wheat toast, tea", carbs:32, gl:12, sodium:520, sugar:3, verdict:"moderate", items:[], ...E});
+  const g = [[128,"fasting",6],[176,"after",30],[134,"fasting",54],[162,"after",78],[121,"fasting",102],[188,"after",126],[118,"fasting",150]];
+  g.forEach(([v,ctx,h]) => s.glucose.push({id:uid(), t: now - h*HOUR, v, ctx, ...E}));
+  const b = [[138,88,10],[142,90,34],[131,84,58],[136,86,82],[128,82,106],[133,85,130],[129,83,154]];
+  b.forEach(([sys,dia,h]) => s.bp.push({id:uid(), t: now - h*HOUR, sys, dia, ...E}));
+  s.hr.push({id:uid(), t: now - 3*HOUR, bpm:74, quality:"good", mode:"finger", ...E});
+  const st = [6200,4100,8300,5600,7400,3900];
+  st.forEach((n,i) => { s.steps[dkey(now - (6-i)*DAY)] = {n, example:true}; });
+  s.steps[today()] = {n:2850, example:true};
+  s.walks.push({id:uid(), t: now - 25*HOUR, mins:12, steps:1300, postMeal:true, ...E});
+  return s;
+}
+
+let S = null;
+function loadLocal(){ try { const r = localStorage.getItem(LS_KEY); return r ? JSON.parse(r) : null; } catch { return null; } }
+function saveLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch {} }
+function normalize(x){ const d = defaults(); const o = Object.assign(d, x || {}); o.settings = Object.assign(defaults().settings, (x && x.settings) || {}); return o; }
+function prune(){ for (const k of ["meals","glucose","bp","hr","walks","labels"]) if (S[k].length > 400) S[k] = S[k].slice(-400); }
+const hasExamples = () => ["meals","glucose","bp","hr","walks"].some(k => S[k].some(e => e.example)) || Object.values(S.steps).some(e => e && e.example);
+function clearExamples(){
+  for (const k of ["meals","glucose","bp","hr","walks","labels"]) S[k] = S[k].filter(e => !e.example);
+  for (const d of Object.keys(S.steps)) if (S.steps[d] && S.steps[d].example) delete S.steps[d];
+}
+function stepsOn(d){ const e = S.steps[d]; return e ? e.n : 0; }
+
+/* db sync (private per viewer), localStorage as cache/fallback */
+let dbRef = null, saving = false, dirty = false, saveTimer = null;
+function persist(){
+  prune(); saveLocal();
+  if (!dbRef) return;
+  dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(flush, 700);
+}
+async function flush(){
+  if (!dbRef || saving || !dirty) return;
+  saving = true; dirty = false;
+  try { await dbRef.set(JSON.parse(JSON.stringify(S))); $("#syncNote").textContent = "Saved to your account"; $("#syncNote").className = "status"; }
+  catch (e) { $("#syncNote").textContent = e && e.code === "quota_exceeded" ? "Storage is full. Older entries need clearing." : "Saved on this device only."; }
+  finally { saving = false; if (dirty) flush(); }
+}
+function commit(){ if (hasExamples() && S._userActed !== true) { /* keep examples until first own entry */ } persist(); render(); }
+function userEntry(){ if (hasExamples()) clearExamples(); S._userActed = true; }
+
+/* ---------- Clinical-ish rules ---------- */
+const toUnit = (mg) => S.settings.unit === "mmol" ? (mg/18).toFixed(1) : Math.round(mg);
+const fromUnit = (v) => S.settings.unit === "mmol" ? v*18 : v;
+const unitLbl = () => S.settings.unit === "mmol" ? "mmol/L" : "mg/dL";
+const wantsG = () => S.settings.condition !== "hypertension";
+const wantsB = () => S.settings.condition !== "diabetes";
+function glClass(gl){ return gl == null ? null : gl >= 20 ? "high" : gl >= 11 ? "medium" : "low"; }
+function mealVerdict(m){
+  const g = glClass(m.gl ?? (m.carbs != null ? m.carbs*0.45 : null));
+  const highNa = (m.sodium || 0) > S.settings.sodiumLimit * 0.4;
+  if ((wantsG() && g === "high") || (wantsB() && highNa && (m.sodium||0) > S.settings.sodiumLimit*0.55)) return "spike-risk";
+  if ((wantsG() && g === "medium") || (wantsB() && highNa)) return "moderate";
+  return "safe";
+}
+function bpClass(s,d){
+  if (s >= 180 || d >= 120) return ["bad","Crisis range"];
+  if (s >= 140 || d >= 90) return ["bad","Stage 2"];
+  if (s >= 130 || d >= 80) return ["warn","Stage 1"];
+  if (s >= 120) return ["warn","Elevated"];
+  return ["ok","Normal"];
+}
+function gClass(v, ctx){
+  if (v < 54) return ["bad","Very low"];
+  if (v < 70) return ["bad","Low"];
+  if (ctx === "after") return v > 180 ? ["warn","Above target"] : ["ok","In target"];
+  if (ctx === "fasting" || ctx === "before") return v > 130 ? ["warn","Above target"] : ["ok","In target"];
+  return v > 180 ? ["warn","High"] : ["ok","In range"];
+}
+const vChip = (v) => v === "spike-risk" ? `<span class="chip bad">Spike-risk</span>` : v === "moderate" ? `<span class="chip warn">Moderate</span>` : `<span class="chip ok">Safe</span>`;
+
+function todayTotals(){
+  const k = today(); const meals = S.meals.filter(m => dkey(m.t) === k);
+  return { meals, carbs: meals.reduce((a,m)=>a+(m.carbs||0),0), sodium: meals.reduce((a,m)=>a+(m.sodium||0),0),
+    sugar: meals.reduce((a,m)=>a+(m.sugar||0),0), steps: stepsOn(k) };
+}
+const last = (arr) => arr.length ? arr.reduce((a,b)=> b.t > a.t ? b : a) : null;
+
+function computeAlerts(){
+  const out = [], now = Date.now(), T = todayTotals();
+  const lg = last(S.glucose), lb = last(S.bp);
+  if (lg && now - lg.t < 6*HOUR && lg.v < 70) out.push(["bad","Low glucose: " + toUnit(lg.v) + " " + unitLbl(), "Treat a low now with 15 g fast-acting carbs and recheck in 15 minutes. Don't go for a walk until it's back above 70 mg/dL."]);
+  if (lb && now - lb.t < 12*HOUR && (lb.sys >= 180 || lb.dia >= 120)) out.push(["bad","Very high BP: " + lb.sys + "/" + lb.dia, "Rest 5 minutes and measure again. If it's still this high, or you have chest pain, headache or vision changes, seek urgent care."]);
+  const recentMeal = S.meals.filter(m => now - m.t < 2*HOUR).sort((a,b)=>b.t-a.t)[0];
+  if (wantsG() && recentMeal && (glClass(recentMeal.gl) === "high" || recentMeal.verdict === "spike-risk")) {
+    const walked = S.walks.some(w => w.t > recentMeal.t);
+    if (!walked) out.push(["warn","Spike risk after " + recentMeal.name.toLowerCase(), "High glycemic load (" + Math.round(recentMeal.gl ?? 0) + ") and no walk logged since. A 10–15 minute walk now can help lower the after-meal rise."]);
+  }
+  if (wantsB() && T.sodium > S.settings.sodiumLimit) out.push(["warn","Sodium over today's limit", Math.round(T.sodium) + " mg logged vs " + S.settings.sodiumLimit + " mg limit. Choose low-salt options for the rest of the day and drink water."]);
+  else if (wantsB() && T.sodium > S.settings.sodiumLimit*0.75) out.push(["warn","Sodium close to limit", Math.round(T.sodium) + " of " + S.settings.sodiumLimit + " mg used today."]);
+  const h = new Date().getHours();
+  if (h >= 17 && T.steps < S.settings.stepGoal*0.5) out.push(["warn","Low movement today", T.steps.toLocaleString() + " steps so far. Low activity plus " + (T.carbs > 150 ? "a high-carb day" : "evening meals") + " raises tomorrow's fasting reading risk."]);
+  const wk = S.bp.filter(b => now - b.t < 7*DAY);
+  if (wantsB() && wk.length >= 3) { const avg = wk.reduce((a,b)=>a+b.sys,0)/wk.length; if (avg >= 135) out.push(["warn","7-day BP average is high", "Average systolic " + Math.round(avg) + " mmHg over " + wk.length + " readings. Share this trend with your doctor."]); }
+  const ag = S.glucose.filter(g => now - g.t < 7*DAY && g.ctx === "after");
+  if (wantsG() && ag.length >= 2 && ag.filter(g=>g.v>180).length >= 2) out.push(["warn","Repeated post-meal highs", ag.filter(g=>g.v>180).length + " after-meal readings above 180 mg/dL this week. Plate scans plus post-meal walks target exactly this."]);
+  if (!out.length) out.push(["ok","All clear right now","No spike or surge patterns in your recent meals, steps and readings."]);
+  return out;
+}
+
+function vesselScore(){
+  const now = Date.now(); let stepsSum = 0;
+  for (let i=0;i<7;i++) stepsSum += stepsOn(dkey(now - i*DAY));
+  const stepPart = Math.min(1, (stepsSum/7) / S.settings.stepGoal);
+  const days = {}; S.meals.filter(m => now - m.t < 7*DAY).forEach(m => { const k=dkey(m.t); days[k]=(days[k]||0)+(m.sodium||0); });
+  const dv = Object.values(days); const sodPart = dv.length ? dv.filter(v => v <= S.settings.sodiumLimit).length / dv.length : 0.5;
+  const wb = S.bp.filter(b => now - b.t < 7*DAY); const bpPart = wb.length ? wb.filter(b => b.sys < 130 && b.dia < 80).length / wb.length : 0.5;
+  return { total: Math.round(stepPart*40 + sodPart*30 + bpPart*30), stepPart, sodPart, bpPart, avgSteps: Math.round(stepsSum/7), sodDays: dv.length, bpN: wb.length };
+}
+
+/* ---------- Charts ---------- */
+function lineChart(series, opts){
+  // series: [{pts:[{t,v}], color, label}], bands: [{lo,hi}]
+  const W = 640, H = 200, P = {l:38, r:12, t:12, b:24};
+  const all = series.flatMap(s => s.pts);
+  if (!all.length) return `<p class="sub">No readings yet.</p>`;
+  const tmin = Math.min(...all.map(p=>p.t)), tmax = Math.max(...all.map(p=>p.t), tmin + HOUR);
+  let vmin = Math.min(...all.map(p=>p.v), opts.floor ?? Infinity), vmax = Math.max(...all.map(p=>p.v), opts.ceil ?? -Infinity);
+  const pad = (vmax - vmin) * 0.12 || 10; vmin = Math.floor((vmin - pad)/10)*10; vmax = Math.ceil((vmax + pad)/10)*10;
+  const x = t => P.l + (t - tmin)/(tmax - tmin) * (W - P.l - P.r);
+  const y = v => H - P.b - (v - vmin)/(vmax - vmin) * (H - P.t - P.b);
+  let g = "";
+  const ticks = 4; for (let i=0;i<=ticks;i++){ const v = vmin + (vmax-vmin)*i/ticks; g += `<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${P.l-6}" y="${y(v)+3}" text-anchor="end">${opts.fmt ? opts.fmt(v) : Math.round(v)}</text>`; }
+  (opts.bands||[]).forEach(b => { const lo = Math.max(b.lo, vmin), hi = Math.min(b.hi, vmax); if (hi > lo) g = `<rect x="${P.l}" width="${W-P.l-P.r}" y="${y(hi)}" height="${y(lo)-y(hi)}" fill="var(--ok-soft)"/>` + g; });
+  g += `<text x="${P.l}" y="${H-6}">${new Date(tmin).toLocaleDateString([], {month:"short",day:"numeric"})}</text><text x="${W-P.r}" y="${H-6}" text-anchor="end">${new Date(tmax).toLocaleDateString([], {month:"short",day:"numeric"})}</text>`;
+  series.forEach(s => {
+    const pts = [...s.pts].sort((a,b)=>a.t-b.t);
+    g += `<polyline fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" points="${pts.map(p=>x(p.t).toFixed(1)+","+y(p.v).toFixed(1)).join(" ")}"/>`;
+    pts.forEach((p,i) => g += `<circle cx="${x(p.t).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="${i===pts.length-1?4.5:2.5}" fill="${s.color}"/>`);
+  });
+  const legend = series.length > 1 ? `<div class="row" style="font-size:12px;color:var(--muted)">${series.map(s=>`<span style="display:inline-flex;align-items:center;gap:6px"><i style="width:10px;height:3px;background:${s.color};display:inline-block"></i>${s.label}</span>`).join("")}<span style="display:inline-flex;align-items:center;gap:6px"><i style="width:10px;height:10px;background:var(--ok-soft);display:inline-block"></i>target zone</span></div>` : `<div class="row" style="font-size:12px;color:var(--muted)"><span style="display:inline-flex;align-items:center;gap:6px"><i style="width:10px;height:10px;background:var(--ok-soft);display:inline-block"></i>target zone</span></div>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${opts.aria}">${g}</svg>${legend}`;
+}
+function stepChart(){
+  const W = 640, H = 190, P = {l:44, r:10, t:14, b:26}, now = Date.now();
+  const days = []; for (let i=6;i>=0;i--){ const t = now - i*DAY; days.push({k:dkey(t), n:stepsOn(dkey(t)), lbl:new Date(t).toLocaleDateString([], {weekday:"short"})}); }
+  const goal = S.settings.stepGoal, vmax = Math.ceil(Math.max(goal, ...days.map(d=>d.n)) * 1.1 / 1000) * 1000;
+  const y = v => H - P.b - v/vmax*(H-P.t-P.b), bw = (W-P.l-P.r)/7;
+  let g = "";
+  for (let i=0;i<=4;i++){ const v = vmax*i/4; g += `<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${P.l-6}" y="${y(v)+3}" text-anchor="end">${v>=1000?(v/1000).toFixed(v%1000?1:0)+"k":v}</text>`; }
+  days.forEach((d,i) => { const x = P.l + i*bw + bw*0.18, w = bw*0.64, h = H-P.b-y(d.n);
+    g += `<rect x="${x}" y="${y(d.n)}" width="${w}" height="${Math.max(h,0)}" rx="4" fill="${d.n>=goal?"var(--accent)":"var(--surface-2)"}" stroke="var(--accent)" stroke-width="${d.n>=goal?0:1}"/>`;
+    g += `<text x="${x+w/2}" y="${H-8}" text-anchor="middle">${d.lbl}</text>`;
+    if (d.n) g += `<text x="${x+w/2}" y="${y(d.n)-4}" text-anchor="middle" style="fill:var(--ink)">${(d.n/1000).toFixed(1)}k</text>`; });
+  g += `<line x1="${P.l}" x2="${W-P.r}" y1="${y(goal)}" y2="${y(goal)}" stroke="var(--accent)" stroke-dasharray="5 4"/><text x="${W-P.r}" y="${y(goal)-4}" text-anchor="end" style="fill:var(--accent)">goal ${goal.toLocaleString()}</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Steps, last 7 days">${g}</svg>`;
+}
+
+/* ---------- Render ---------- */
+function render(){
+  $("#exampleBanner").hidden = !hasExamples();
+  const condTxt = {both:"Diabetes + Hypertension", diabetes:"Diabetes", hypertension:"Hypertension"}[S.settings.condition];
+  $("#condBadge").textContent = condTxt;
+  document.querySelectorAll(".gu").forEach(e => e.textContent = unitLbl());
+  renderToday(); renderSteps(); renderLog();
+}
+function renderToday(){
+  const T = todayTotals(), lg = last(S.glucose), lb = last(S.bp), lh = last(S.hr);
+  $("#alerts").innerHTML = computeAlerts().map(([lv,t,d]) => `<div class="alert ${lv}"><div class="bar"></div><div class="body"><div class="t">${esc(t)}</div><div class="d">${esc(d)}</div></div></div>`).join("");
+  const stats = [];
+  if (wantsG()) stats.push(`<div class="stat g"><span class="k">Carbs</span><span class="v">${Math.round(T.carbs)}<small>g</small></span><span class="n">${T.meals.length} meal${T.meals.length===1?"":"s"} logged</span></div>`);
+  if (wantsB()) stats.push(`<div class="stat c"><span class="k">Sodium</span><span class="v">${Math.round(T.sodium).toLocaleString()}<small>mg</small></span><span class="n">limit ${S.settings.sodiumLimit.toLocaleString()} mg</span></div>`);
+  stats.push(`<div class="stat"><span class="k">Steps</span><span class="v">${T.steps.toLocaleString()}</span><span class="n">goal ${S.settings.stepGoal.toLocaleString()}</span></div>`);
+  if (wantsG()) stats.push(`<div class="stat g"><span class="k">Last glucose</span><span class="v">${lg ? toUnit(lg.v) : "–"}<small>${unitLbl()}</small></span><span class="n">${lg ? esc(gClass(lg.v,lg.ctx)[1]) + " · " + fmtDT(lg.t) : "none logged"}</span></div>`);
+  if (wantsB()) stats.push(`<div class="stat c"><span class="k">Last BP</span><span class="v">${lb ? lb.sys+"/"+lb.dia : "–"}<small>mmHg</small></span><span class="n">${lb ? bpClass(lb.sys,lb.dia)[1] + " · " + fmtDT(lb.t) : "none logged"}</span></div>`);
+  stats.push(`<div class="stat"><span class="k">Heart rate</span><span class="v">${lh ? lh.bpm : "–"}<small>bpm</small></span><span class="n">${lh ? "camera scan · " + fmtDT(lh.t) : "run a pulse scan"}</span></div>`);
+  $("#todayStats").innerHTML = stats.join("");
+
+  const sc = vesselScore(), C = 2*Math.PI*50, col = sc.total >= 70 ? "var(--ok)" : sc.total >= 45 ? "var(--warn)" : "var(--bad)";
+  $("#ring").innerHTML = `<circle cx="60" cy="60" r="50" fill="none" stroke="var(--surface-2)" stroke-width="11"/><circle cx="60" cy="60" r="50" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(C*sc.total/100).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 60 60)"/><text x="60" y="66" text-anchor="middle" font-size="30" font-weight="500" fill="var(--ink)">${sc.total}</text><text x="60" y="84" text-anchor="middle" font-size="10" fill="var(--muted)">/ 100</text>`;
+  const part = (lbl, v, max, note, cls) => `<div><div class="lbl-row"><span>${lbl}</span><b>${Math.round(v*max)}/${max}</b></div><div class="meter ${cls}"><i style="width:${Math.round(v*100)}%"></i></div><div class="lbl-row"><span>${note}</span></div></div>`;
+  $("#scoreParts").innerHTML = part("Movement", sc.stepPart, 40, "avg " + sc.avgSteps.toLocaleString() + " steps/day", "") + part("Sodium", sc.sodPart, 30, sc.sodDays ? sc.sodDays + " day(s) with meals logged" : "no meals logged (neutral)", "c") + part("BP in target", sc.bpPart, 30, sc.bpN ? sc.bpN + " reading(s) this week" : "no readings (neutral)", "c");
+
+  // Walk window
+  const now = Date.now(), m = S.meals.filter(x => now - x.t < 90*60e3).sort((a,b)=>b.t-a.t)[0];
+  const walked = m && S.walks.some(w => w.t > m.t);
+  if (m && !walked && wantsG()) {
+    const mins = Math.round((now - m.t)/60e3);
+    $("#walkCard").innerHTML = `<div class="panel" style="border-color:var(--gluco)"><div class="row" style="justify-content:space-between"><h2>Post-meal walk window is open</h2>${vChip(m.verdict)}</div><p class="sub">You logged <b>${esc(m.name)}</b> ${mins} min ago. After-meal glucose usually peaks 30–90 minutes after eating, so a 10–15 minute walk now is well timed.</p><div class="row"><a class="btn primary" href="#steps" id="goWalk">Start a 10-minute walk</a></div></div>`;
+    $("#goWalk").onclick = () => { location.hash = "steps"; setTimeout(startWalk, 50); };
+  } else $("#walkCard").innerHTML = "";
+}
+function renderSteps(){
+  const n = stepsOn(today()), goal = S.settings.stepGoal, now = Date.now();
+  const wk = S.walks.filter(w => now - w.t < 7*DAY), post = wk.filter(w => w.postMeal).length;
+  let sum = 0; for (let i=0;i<7;i++) sum += stepsOn(dkey(now - i*DAY));
+  $("#stepStats").innerHTML = `<div class="stat"><span class="k">Today</span><span class="v">${n.toLocaleString()}</span></div><div class="stat"><span class="k">7-day average</span><span class="v">${Math.round(sum/7).toLocaleString()}</span></div><div class="stat g"><span class="k">Post-meal walks</span><span class="v">${post}<small>this week</small></span></div>`;
+  $("#stepPct").textContent = Math.round(n/goal*100) + "%";
+  $("#stepBar").style.width = Math.min(100, n/goal*100) + "%";
+  $("#stepChart").innerHTML = stepChart();
+  if (!$("#sDate").value) $("#sDate").value = today();
+}
+function renderLog(){
+  $("#gChart").innerHTML = lineChart([{pts:S.glucose.map(g=>({t:g.t, v:g.v})), color:"var(--gluco)", label:"Glucose"}], {aria:"Glucose trend", bands:[{lo:70, hi:180}], floor:60, ceil:200, fmt: v => S.settings.unit==="mmol" ? (v/18).toFixed(1) : Math.round(v)});
+  $("#bChart").innerHTML = lineChart([{pts:S.bp.map(b=>({t:b.t,v:b.sys})), color:"var(--cardio)", label:"Systolic"},{pts:S.bp.map(b=>({t:b.t,v:b.dia})), color:"var(--accent)", label:"Diastolic"}], {aria:"Blood pressure trend", bands:[{lo:60, hi:80},{lo:90,hi:130}], floor:60, ceil:150});
+  const rows = [
+    ...S.glucose.map(g => ({t:g.t, type:"Glucose", val: toUnit(g.v) + " " + unitLbl(), note: ({fasting:"fasting",before:"before meal",after:"after meal",random:"random"})[g.ctx], chip: gClass(g.v,g.ctx), k:"glucose", id:g.id})),
+    ...S.bp.map(b => ({t:b.t, type:"BP", val: b.sys + "/" + b.dia + " mmHg", note: b.pulse ? b.pulse + " bpm" : "", chip: bpClass(b.sys,b.dia), k:"bp", id:b.id})),
+    ...S.hr.map(h => ({t:h.t, type:"Heart rate", val: h.bpm + " bpm", note: "camera, " + h.mode, chip: [h.quality==="good"?"ok":"warn", h.quality + " signal"], k:"hr", id:h.id})),
+    ...S.meals.map(m => ({t:m.t, type:"Meal", val: Math.round(m.carbs||0) + " g carbs · " + Math.round(m.sodium||0) + " mg Na", note: m.name, chip: m.verdict==="spike-risk"?["bad","Spike-risk"]:m.verdict==="moderate"?["warn","Moderate"]:["ok","Safe"], k:"meals", id:m.id})),
+    ...S.walks.map(w => ({t:w.t, type:"Walk", val: w.mins + " min" + (w.steps ? " · " + w.steps.toLocaleString() + " steps" : ""), note: w.postMeal ? "post-meal" : "", chip:["ok","Walk"], k:"walks", id:w.id})),
+  ].sort((a,b)=>b.t-a.t).slice(0,60);
+  $("#history").innerHTML = rows.length ? `<table><thead><tr><th>When</th><th>Type</th><th>Value</th><th>Status</th><th>Note</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr><td>${fmtDT(r.t)}</td><td>${r.type}</td><td class="num">${esc(r.val)}</td><td><span class="chip ${r.chip[0]}">${esc(r.chip[1])}</span></td><td>${esc(r.note)}</td><td><button class="sm ghost" data-del="${r.k}:${r.id}" aria-label="Delete entry">Delete</button></td></tr>`).join("")}</tbody></table>` : `<p class="sub">Nothing logged yet.</p>`;
+  $("#setCond").value = S.settings.condition; $("#setUnit").value = S.settings.unit;
+  $("#setGoal").value = S.settings.stepGoal; $("#setSod").value = S.settings.sodiumLimit;
+}
+$("#history").addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (!b) return; const [k,id] = b.dataset.del.split(":"); S[k] = S[k].filter(x => x.id !== id); commit(); });
+
+/* ---------- Routing ---------- */
+const VIEWS = ["today","plate","pulse","label","steps","log"];
+function route(){ const h = (location.hash || "#today").slice(1); const v = VIEWS.includes(h) ? h : "today";
+  VIEWS.forEach(x => { $("#v-"+x).hidden = x !== v; });
+  document.querySelectorAll("nav.tabs a").forEach(a => { if (a.dataset.v === v) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
+  if (v === "today") renderToday();
+}
+window.addEventListener("hashchange", route);
+
+/* ---------- AI backend (Netlify Function) ---------- */
+let sample = true, imgOK = true;
+async function shrinkImage(file){
+  let bmp;
+  try { bmp = await createImageBitmap(file); } catch { throw {code:"image_rejected"}; }
+  const max = 1280, sc = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas"); c.width = Math.round(bmp.width*sc); c.height = Math.round(bmp.height*sc);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.85));
+  if (!blob) throw {code:"image_rejected"};
+  return await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1]); fr.onerror = () => rej({code:"image_rejected"}); fr.readAsDataURL(blob); });
+}
+function parseJSONLoose(t){
+  try { return JSON.parse(t); } catch {}
+  const f = t.match(/```(?:json)?\s*([\s\S]*?)```/); if (f) { try { return JSON.parse(f[1]); } catch {} }
+  const a = t.search(/[\[{]/), b = Math.max(t.lastIndexOf("}"), t.lastIndexOf("]"));
+  if (a >= 0 && b > a) { try { return JSON.parse(t.slice(a, b+1)); } catch {} }
+  throw {code:"invalid_json"};
+}
+async function aiJSON(task, extra, file, signal){
+  const image = await shrinkImage(file);
+  let r;
+  try {
+    r = await fetch("/.netlify/functions/analyze", {method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify(Object.assign({task, image}, extra)), signal});
+  } catch (e) { throw {code: e && e.name === "AbortError" ? "cancelled" : "offline"}; }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw {code: d.error || "upstream_error"};
+  return parseJSONLoose(String(d.text || ""));
+}
+const r404 = (c) => c === "not_found";
+function aiErr(e){
+  const c = e && e.code;
+  if (c === "not_granted" || c === "sampling_disabled" || c === "not_declared" || c === "images_unavailable" || c === "capability_disabled") return "Photo analysis isn't available here. Use the manual form below instead.";
+  if (c === "server_not_configured" || r404(c)) return "AI scan isn't set up on the server yet (API key or function missing). Use the manual form below meanwhile.";
+  if (c === "offline") return "No internet connection. Connect and try again.";
+  if (c === "rate_limited") return "Too many scans in a short time. Wait a minute and try again.";
+  if (c === "image_rejected") return "That image couldn't be read. Try a JPEG or PNG under 20 MB.";
+  if (c === "refused") return "This photo couldn't be analyzed. Try a clearer photo of the food or label.";
+  if (c === "invalid_json") return "The result came back incomplete. Tap the button to try again.";
+  if (c === "cancelled") return "";
+  return "Analysis failed because of a connection problem. Try again.";
+}
+const condText = () => ({both:"type 2 diabetes and hypertension", diabetes:"diabetes", hypertension:"hypertension"})[S.settings.condition];
+
+/* Image pickers */
+function wirePicker(ids, prevId, onFile){
+  ids.forEach(id => $(id).addEventListener("change", e => { const f = e.target.files && e.target.files[0]; if (f) onFile(f); e.target.value = ""; }));
+}
+function wireDrop(el, onFile){
+  el.addEventListener("dragover", e => { e.preventDefault(); el.classList.add("over"); });
+  el.addEventListener("dragleave", () => el.classList.remove("over"));
+  el.addEventListener("drop", e => { e.preventDefault(); el.classList.remove("over"); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f && f.type.startsWith("image/")) onFile(f); });
+}
+let plateImg = null, labelImg = null, plateCtl = null;
+function setPreview(id, f){ const img = $(id); try { URL.revokeObjectURL(img.src); } catch {} img.src = URL.createObjectURL(f); img.hidden = false; }
+const onPlate = f => { plateImg = f; setPreview("#platePrev", f); $("#plateGo").disabled = false; $("#plateStatus").textContent = ""; };
+const onLabel = f => { labelImg = f; setPreview("#labelPrev", f); $("#labelGo").disabled = false; $("#labelStatus").textContent = ""; };
+wirePicker(["#plateCam","#plateFile"], "#platePrev", onPlate); wireDrop($("#plateDrop"), onPlate);
+wirePicker(["#labelCam","#labelFile"], "#labelPrev", onLabel); wireDrop($("#labelDrop"), onLabel);
+
+let lastPlate = null;
+$("#plateGo").onclick = async () => {
+  if (!plateImg) return;
+  const st = $("#plateStatus");
+  if (!sample || !imgOK) { st.className = "status err"; st.textContent = "Photo analysis isn't available here. Use the manual form below instead."; return; }
+  $("#plateGo").disabled = true; $("#plateStop").hidden = false; st.className = "status"; st.innerHTML = `<span class="spin"></span> Analyzing your plate…`;
+  plateCtl = new AbortController();
+  const hint = $("#plateHint").value.trim();
+  const prompt = `You estimate nutrition from a meal photo for someone managing ${condText()}.
+${hint ? "The person says the plate contains: " + hint + "\n" : ""}Identify each food item, estimate its portion (grams or household measure), carbohydrate grams and sodium mg. Then estimate the whole meal's total carbs, glycemic load (GL, using typical glycemic index values for each food), sodium mg and added sugar g. Consider South Asian, East Asian and Western dishes.
+Reply with only JSON in this shape:
+{"meal_name":"short name","items":[{"name":"","portion":"","carbs_g":0,"sodium_mg":0}],"total_carbs_g":0,"glycemic_load":0,"sodium_mg":0,"added_sugar_g":0,"confidence":"low|medium|high","reason":"one sentence on the main glucose or blood-pressure driver","swap_tip":"one concrete swap that lowers GL or sodium"}
+If the image does not show food, reply {"not_food":true}.`;
+  try {
+    const r = await aiJSON("plate", {hint, condition: S.settings.condition}, plateImg, plateCtl.signal);
+    if (!r || r.not_food) { st.className = "status err"; st.textContent = "No food found in this photo. Try again with the plate in view."; return; }
+    const m = { id:uid(), t:Date.now(), name: String(r.meal_name || hint || "Meal").slice(0,80),
+      carbs: num(r.total_carbs_g) ?? 0, gl: num(r.glycemic_load), sodium: num(r.sodium_mg) ?? 0, sugar: num(r.added_sugar_g) ?? 0,
+      items: (Array.isArray(r.items) ? r.items : []).slice(0,12).map(i => ({name:String(i.name||""), portion:String(i.portion||""), carbs:num(i.carbs_g)??0, sodium:num(i.sodium_mg)??0})),
+      confidence: String(r.confidence || "medium"), reason: String(r.reason || ""), tip: String(r.swap_tip || "") };
+    m.verdict = mealVerdict(m); lastPlate = m; st.textContent = ""; showPlate(m, false);
+  } catch (e) { st.className = "status err"; st.textContent = aiErr(e); }
+  finally { $("#plateGo").disabled = false; $("#plateStop").hidden = true; }
+};
+$("#plateStop").onclick = () => plateCtl && plateCtl.abort();
+function showPlate(m, saved){
+  const glc = glClass(m.gl), el = $("#plateResult"); el.hidden = false;
+  const glChip = glc === "high" ? "bad" : glc === "medium" ? "warn" : "ok";
+  const naShare = Math.round((m.sodium||0) / S.settings.sodiumLimit * 100);
+  el.innerHTML = `<div class="verdict"><span class="big">${esc(m.name)}</span>${vChip(m.verdict)}<span class="chip mute">${esc(m.confidence)} confidence</span></div>
+  <div class="grid2">
+    <div class="stat g"><span class="k">Carbs</span><span class="v">${Math.round(m.carbs)}<small>g</small></span></div>
+    <div class="stat g"><span class="k">Glycemic load</span><span class="v">${m.gl != null ? Math.round(m.gl) : "–"}</span><span class="n"><span class="chip ${glChip}">${glc || "n/a"}</span></span></div>
+    <div class="stat c"><span class="k">Sodium</span><span class="v">${Math.round(m.sodium).toLocaleString()}<small>mg</small></span><span class="n">${naShare}% of daily limit</span></div>
+    <div class="stat"><span class="k">Added sugar</span><span class="v">${Math.round(m.sugar)}<small>g</small></span></div>
+  </div>
+  ${m.items.length ? `<ul class="items">${m.items.map(i => `<li><span>${esc(i.name)} <span style="color:var(--muted)">· ${esc(i.portion)}</span></span><span>${Math.round(i.carbs)} g · ${Math.round(i.sodium)} mg</span></li>`).join("")}</ul>` : ""}
+  ${m.reason ? `<p class="sub"><b>Why:</b> ${esc(m.reason)}</p>` : ""}
+  ${m.tip ? `<p class="sub"><b>Swap:</b> ${esc(m.tip)}</p>` : ""}
+  <p class="sub" style="font-size:12px">Photo estimates can be off by 20–30%. Use your meter for dosing decisions.</p>
+  <div class="row">${saved ? `<span class="chip ok">Logged</span><a class="btn primary" href="#steps" id="plWalk">Start post-meal walk</a>` : `<button class="primary" id="plSave">Log this meal</button><button class="ghost" id="plDiscard">Discard</button>`}</div>`;
+  if (!saved) {
+    $("#plSave").onclick = () => { userEntry(); S.meals.push(m); commit(); showPlate(m, true); };
+    $("#plDiscard").onclick = () => { el.hidden = true; };
+  } else $("#plWalk").onclick = () => setTimeout(startWalk, 50);
+}
+$("#mAdd").onclick = () => {
+  const carbs = num($("#mCarbs").value), sod = num($("#mSod").value);
+  if (carbs == null && sod == null) { $("#plateStatus").className="status err"; $("#plateStatus").textContent = "Enter carbs or sodium to log a meal."; return; }
+  userEntry();
+  const m = {id:uid(), t:Date.now(), name: $("#mName").value.trim() || "Meal", carbs: carbs ?? 0, sodium: sod ?? 0, gl: num($("#mGL").value) ?? (carbs != null ? Math.round(carbs*0.45) : null), sugar:0, items:[], confidence:"manual"};
+  m.verdict = mealVerdict(m); S.meals.push(m); commit();
+  ["#mName","#mCarbs","#mSod","#mGL"].forEach(i => $(i).value = "");
+  $("#plateStatus").className = "status"; $("#plateStatus").textContent = "Meal logged: " + m.name + " (" + m.verdict + ").";
+};
+
+$("#labelGo").onclick = async () => {
+  if (!labelImg) return; const st = $("#labelStatus");
+  if (!sample || !imgOK) { st.className = "status err"; st.textContent = "Label reading isn't available here."; return; }
+  $("#labelGo").disabled = true; st.className = "status"; st.innerHTML = `<span class="spin"></span> Reading label…`;
+  const prompt = `Read the label in this photo for someone managing ${condText()}. It is either a food nutrition label or a medicine package.
+Reply with only JSON:
+{"kind":"nutrition|medication|unknown","product":"name if visible","serving":"serving size text","per_serving":{"carbs_g":null,"sugar_g":null,"added_sugar_g":null,"sodium_mg":null,"fiber_g":null,"sat_fat_g":null},"flags":["short warnings, e.g. high sodium (>600 mg/serving), hidden sugars by their ingredient names, high saturated fat"],"medication":{"name":"","active_ingredients":[""],"food_interactions":["well-established interactions relevant to diabetes or blood pressure, e.g. grapefruit with some calcium-channel blockers, potassium-rich salt substitutes with ACE inhibitors, alcohol with metformin, decongestants raising BP, NSAIDs raising BP"]},"summary":"two sentences, plain language"}
+Use null for anything not readable. For a nutrition label, leave medication fields empty. Only list interactions that apply to the ingredients you can read.`;
+  try {
+    const r = await aiJSON("label", {condition: S.settings.condition}, labelImg);
+    showLabel(r || {});
+    st.textContent = "";
+  } catch (e) { st.className = "status err"; st.textContent = aiErr(e).replace("Use the manual form below instead.",""); }
+  finally { $("#labelGo").disabled = false; }
+};
+function showLabel(r){
+  const el = $("#labelResult"); el.hidden = false; const p = r.per_serving || {}; const flags = Array.isArray(r.flags) ? r.flags : [];
+  const isMed = r.kind === "medication";
+  const sodHigh = num(p.sodium_mg) != null && p.sodium_mg > 600, sugHigh = num(p.added_sugar_g) != null && p.added_sugar_g > 10;
+  let html = `<div class="verdict"><span class="big">${esc(r.product || (isMed ? "Medicine" : "Product"))}</span><span class="chip mute">${esc(r.kind || "label")}</span>${!isMed ? (sodHigh || sugHigh ? `<span class="chip bad">Check this</span>` : `<span class="chip ok">Reasonable</span>`) : ""}</div>`;
+  if (!isMed) {
+    const cell = (k, v, u, cls) => `<div class="stat ${cls}"><span class="k">${k}</span><span class="v">${v == null ? "–" : Math.round(v)}<small>${u}</small></span></div>`;
+    html += `${r.serving ? `<p class="sub">Per serving: ${esc(r.serving)}</p>` : ""}<div class="grid2">${cell("Carbs", num(p.carbs_g), "g", "g")}${cell("Added sugar", num(p.added_sugar_g) ?? num(p.sugar_g), "g", "g")}${cell("Sodium", num(p.sodium_mg), "mg", "c")}${cell("Fibre", num(p.fiber_g), "g", "")}</div>`;
+  } else {
+    const med = r.medication || {};
+    html += `${(med.active_ingredients||[]).length ? `<p class="sub"><b>Active ingredients:</b> ${esc(med.active_ingredients.join(", "))}</p>` : ""}`;
+    const fi = (med.food_interactions || []).filter(Boolean);
+    html += fi.length ? `<h3>Food &amp; drink interactions</h3>${fi.map(x => `<div class="alert warn"><div class="bar"></div><div class="body"><div class="d" style="color:var(--ink)">${esc(x)}</div></div></div>`).join("")}` : `<p class="sub">No common food interactions found for what's readable on this label.</p>`;
+    html += `<p class="sub" style="font-size:12px">General information only. Confirm interactions with your pharmacist.</p>`;
+  }
+  if (flags.length) html += `<div style="display:flex;flex-direction:column;gap:6px">${flags.slice(0,6).map(f => `<div class="alert bad"><div class="bar"></div><div class="body"><div class="d" style="color:var(--ink)">${esc(f)}</div></div></div>`).join("")}</div>`;
+  if (r.summary) html += `<p class="sub">${esc(r.summary)}</p>`;
+  if (!isMed && (num(p.carbs_g) != null || num(p.sodium_mg) != null)) html += `<div class="row"><button class="primary" id="lbLog">Log 1 serving as a meal</button></div>`;
+  el.innerHTML = html;
+  const b = $("#lbLog"); if (b) b.onclick = () => { userEntry(); const m = {id:uid(), t:Date.now(), name: String(r.product || "Packaged food").slice(0,80), carbs:num(p.carbs_g)??0, sodium:num(p.sodium_mg)??0, sugar:num(p.added_sugar_g)??num(p.sugar_g)??0, gl: num(p.carbs_g)!=null ? Math.round(num(p.carbs_g)*0.5) : null, items:[], confidence:"label"}; m.verdict = mealVerdict(m); S.meals.push(m); commit(); b.replaceWith(Object.assign(document.createElement("span"), {className:"chip ok", textContent:"Logged"})); };
+}
+
+/* ---------- Pulse (PPG from video) ---------- */
+let pMode = "finger";
+const HOW = {
+  finger: ["Turn on the phone's flashlight (torch).","Cover the rear camera AND flash fully with your fingertip. Press lightly.","Record for 20–30 seconds while sitting still.","Pick the video. Analysis runs on your device; the video is not uploaded."],
+  face: ["Sit facing a window or bright, even light.","Use the front camera; fill the frame with your face. Stay still, don't talk.","Record for 20–30 seconds.","Pick the video. Analysis runs on your device; the video is not uploaded."]
+};
+function setMode(m){ pMode = m; $("#modeFinger").setAttribute("aria-pressed", m==="finger"); $("#modeFace").setAttribute("aria-pressed", m==="face");
+  $("#pulseHow").innerHTML = HOW[m].map(s => `<li>${s}</li>`).join(""); $("#pulseCam").setAttribute("capture", m === "face" ? "user" : "environment"); }
+$("#modeFinger").onclick = () => setMode("finger"); $("#modeFace").onclick = () => setMode("face"); setMode("finger");
+["#pulseCam","#pulseFile"].forEach(id => $(id).addEventListener("change", e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) analyzePulse(f); }));
+
+function extractSamples(file, onProg){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), v = document.createElement("video");
+    v.muted = true; v.playsInline = true; v.preload = "auto"; v.src = url;
+    const c = document.createElement("canvas"), N = 40; c.width = N; c.height = N;
+    const ctx = c.getContext("2d", {willReadFrequently:true}); const S2 = []; let iv = null, done = false;
+    const grab = (t) => {
+      const vw = v.videoWidth, vh = v.videoHeight; if (!vw) return;
+      let sx, sy, sw, sh;
+      if (pMode === "face") { sw = vw*0.36; sh = vh*0.22; sx = (vw-sw)/2; sy = vh*0.22; } // forehead / upper face
+      else { const s = Math.min(vw,vh)*0.6; sw = sh = s; sx = (vw-s)/2; sy = (vh-s)/2; }
+      ctx.drawImage(v, sx, sy, sw, sh, 0, 0, N, N);
+      const d = ctx.getImageData(0,0,N,N).data; let r=0,g=0,b=0; const n = d.length/4;
+      for (let i=0;i<d.length;i+=4){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; }
+      S2.push({t, r:r/n, g:g/n, b:b/n});
+    };
+    const finish = () => { if (done) return; done = true; clearInterval(iv); URL.revokeObjectURL(url); resolve({samples:S2, dur:v.duration}); };
+    v.onerror = () => { clearInterval(iv); reject(new Error("This video format can't be read in the browser. Try recording again, or use an MP4.")); };
+    v.onended = finish;
+    v.onloadedmetadata = async () => {
+      if (!isFinite(v.duration) || v.duration < 8) { reject(new Error("The video is too short. Record at least 15 seconds (20–30 is best).")); return; }
+      try {
+        if ("requestVideoFrameCallback" in v) { const cb = (_n, meta) => { grab(meta.mediaTime); onProg(v.currentTime / v.duration); if (!v.ended && !done) v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
+        else iv = setInterval(() => { grab(v.currentTime); onProg(v.currentTime / v.duration); }, 33);
+        await v.play();
+      } catch (e) { reject(new Error("The video couldn't be played for analysis. Try a different file.")); }
+    };
+  });
+}
+function estimateBPM(samples){
+  const fs = 30, t0 = samples[0].t + 1.5, t1 = samples[samples.length-1].t;
+  if (t1 - t0 < 8) return null;
+  const chans = ["r","g"], results = [];
+  for (const ch of chans) {
+    // resample to uniform 30 Hz
+    const xs = []; let j = 0;
+    for (let t = t0; t <= t1; t += 1/fs) { while (j < samples.length-2 && samples[j+1].t < t) j++; const a = samples[j], b = samples[j+1] || a; const w = b.t > a.t ? (t-a.t)/(b.t-a.t) : 0; xs.push(a[ch] + (b[ch]-a[ch])*Math.max(0,Math.min(1,w))); }
+    const mean = xs.reduce((s,x)=>s+x,0)/xs.length; if (ch === "r" && mean > 252) continue; // saturated
+    // detrend (1 s moving average) + light smoothing
+    const W = fs, det = xs.map((x,i) => { let s=0,c=0; for (let k=Math.max(0,i-W/2);k<Math.min(xs.length,i+W/2);k++){s+=xs[k];c++;} return x - s/c; });
+    const sm = det.map((_,i) => (det[i-1]??det[i]) * .25 + det[i]*.5 + (det[i+1]??det[i]) * .25);
+    const sd = Math.sqrt(sm.reduce((s,x)=>s+x*x,0)/sm.length) || 1; const z = sm.map(x => x/sd);
+    // spectrum 42–180 bpm
+    let best = 0, bestP = 0, tot = 0, cnt = 0; const spec = [];
+    for (let bpm = 42; bpm <= 180; bpm += 0.5) { const f = bpm/60; let re=0, im=0; for (let i=0;i<z.length;i++){ const a = 2*Math.PI*f*i/fs; re += z[i]*Math.cos(a); im += z[i]*Math.sin(a); } const p = re*re+im*im; spec.push(p); tot += p; cnt++; if (p > bestP) { bestP = p; best = bpm; } }
+    const snr = bestP / (tot/cnt);
+    results.push({ch, bpm: Math.round(best), snr, wave: z.slice(-fs*8)});
+  }
+  if (!results.length) return null;
+  return results.sort((a,b)=>b.snr-a.snr)[0];
+}
+async function analyzePulse(file){
+  const st = $("#pulseStatus"), res = $("#pulseResult"); res.hidden = true; st.className = "status";
+  st.innerHTML = `<span class="spin"></span> Reading video… 0%`;
+  try {
+    const {samples} = await extractSamples(file, p => { st.innerHTML = `<span class="spin"></span> Reading video… ${Math.min(99, Math.round(p*100))}%`; });
+    if (samples.length < 150) throw new Error("Not enough frames could be read. Record again at normal speed, 20–30 seconds.");
+    const meanR = samples.reduce((s,x)=>s+x.r,0)/samples.length, meanG = samples.reduce((s,x)=>s+x.g,0)/samples.length;
+    const fingerLike = meanR > 90 && meanR > meanG*1.8;
+    const r = estimateBPM(samples);
+    if (!r) throw new Error("The usable part of the video was too short.");
+    const quality = r.snr >= 6 ? "good" : r.snr >= 3.5 ? "fair" : "poor";
+    st.textContent = "";
+    const W = 640, H = 120, wv = r.wave, mn = Math.min(...wv), mx = Math.max(...wv);
+    const pts = wv.map((v,i) => (i/(wv.length-1)*W).toFixed(1) + "," + (H-8-(v-mn)/(mx-mn||1)*(H-16)).toFixed(1)).join(" ");
+    const hint = pMode === "finger" && !fingerLike ? "The camera didn't look fully covered. Cover lens and flash completely with the torch on." : pMode === "face" ? "Face scans are sensitive to movement and lighting; a fingertip scan is usually steadier." : "";
+    const hrClass = r.bpm > 100 ? ["warn","Above resting range"] : r.bpm < 50 ? ["warn","Below typical range"] : ["ok","Typical resting range"];
+    res.hidden = false;
+    res.innerHTML = `<div class="verdict"><span class="timer" style="color:var(--cardio)">${r.bpm}</span><span class="big" style="font-size:18px">bpm</span><span class="chip ${quality==="good"?"ok":quality==="fair"?"warn":"bad"}">${quality} signal</span>${quality!=="poor" ? `<span class="chip ${hrClass[0]}">${hrClass[1]}</span>` : ""}</div>
+      <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Pulse waveform, last 8 seconds"><polyline fill="none" stroke="var(--cardio)" stroke-width="2" points="${pts}"/></svg>
+      <p class="sub">Pulse waveform, last 8 seconds of the video.${quality==="poor" ? " The signal was too noisy to trust this number, so it isn't saved. Hold still and try again." : ""}</p>
+      ${hint ? `<p class="sub">${hint}</p>` : ""}
+      <div class="row">${quality !== "poor" ? `<button class="primary" id="hrSave">Save reading</button>` : ""}</div>`;
+    const b = $("#hrSave"); if (b) b.onclick = () => { userEntry(); S.hr.push({id:uid(), t:Date.now(), bpm:r.bpm, quality, mode:pMode}); commit(); b.replaceWith(Object.assign(document.createElement("span"), {className:"chip ok", textContent:"Saved"})); };
+  } catch (e) { st.className = "status err"; st.textContent = e.message || "The video couldn't be analyzed."; }
+}
+
+/* ---------- Walk timer ---------- */
+let walkStartT = 0, walkIv = null, wakeLock = null;
+async function startWalk(){
+  if (walkIv) return; walkStartT = Date.now(); $("#walkStart").disabled = true; $("#walkStop").disabled = false; $("#walkSave").hidden = true;
+  const m = S.meals.filter(x => Date.now() - x.t < 2*HOUR).sort((a,b)=>b.t-a.t)[0];
+  $("#walkNote").textContent = m ? "Post-meal walk after " + m.name + ". Aim for 10–15 minutes." : "Walking. Keep this page open; it keeps the screen awake where allowed.";
+  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  walkIv = setInterval(() => { const s = Math.floor((Date.now()-walkStartT)/1000); $("#timer").textContent = String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0"); }, 500);
+}
+$("#walkStart").onclick = startWalk;
+$("#walkStop").onclick = () => { clearInterval(walkIv); walkIv = null; try { wakeLock && wakeLock.release(); } catch {}
+  const mins = Math.max(1, Math.round((Date.now()-walkStartT)/60e3));
+  $("#walkStart").disabled = false; $("#walkStop").disabled = true; $("#walkSave").hidden = false;
+  $("#walkSteps").value = mins * 100; $("#walkNote").textContent = mins + " min walked. The step figure is a rough estimate (about 100 steps/min); replace it with your phone's count if you have it.";
+  $("#walkSave").dataset.mins = mins; };
+$("#walkSaveBtn").onclick = () => { userEntry(); const mins = +$("#walkSave").dataset.mins || 1, steps = Math.max(0, Math.round(num($("#walkSteps").value) || 0)), t = Date.now();
+  const postMeal = S.meals.some(m => t - m.t < 2*HOUR && t - m.t > 0);
+  S.walks.push({id:uid(), t, mins, steps, postMeal}); const k = today(); S.steps[k] = {n: stepsOn(k) + steps}; commit();
+  $("#walkSave").hidden = true; $("#timer").textContent = "00:00"; $("#walkNote").textContent = "Walk saved" + (postMeal ? " as a post-meal walk." : "."); };
+$("#sAdd").onclick = () => { const d = $("#sDate").value.trim(), n = num($("#sCount").value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || n == null || n < 0) { $("#walkNote").textContent = "Enter a date as YYYY-MM-DD and a step count."; return; }
+  userEntry(); S.steps[d] = {n: Math.round(n)}; $("#sCount").value = ""; commit(); };
+
+/* ---------- Readings ---------- */
+$("#gAdd").onclick = () => { const raw = num($("#gVal").value); const st = $("#logStatus");
+  if (raw == null || raw <= 0) { st.className="status err"; st.textContent = "Enter a glucose value."; return; }
+  const v = fromUnit(raw); if (v < 20 || v > 600) { st.className="status err"; st.textContent = "That glucose value looks out of range. Check the unit in Settings."; return; }
+  userEntry(); S.glucose.push({id:uid(), t:Date.now(), v, ctx:$("#gCtx").value}); $("#gVal").value = ""; commit();
+  const c = gClass(v, $("#gCtx").value); st.className = "status"; st.textContent = "Saved: " + toUnit(v) + " " + unitLbl() + " (" + c[1].toLowerCase() + ")."; };
+$("#bAdd").onclick = () => { const s = num($("#bSys").value), d = num($("#bDia").value), p = num($("#bPul").value), st = $("#logStatus");
+  if (s == null || d == null || s < 60 || s > 260 || d < 30 || d > 160 || d >= s) { st.className="status err"; st.textContent = "Enter systolic (top) and diastolic (bottom) numbers from your cuff."; return; }
+  userEntry(); S.bp.push({id:uid(), t:Date.now(), sys:Math.round(s), dia:Math.round(d), pulse: p ? Math.round(p) : null}); ["#bSys","#bDia","#bPul"].forEach(i => $(i).value = ""); commit();
+  st.className = "status"; st.textContent = "Saved: " + Math.round(s) + "/" + Math.round(d) + " (" + bpClass(s,d)[1].toLowerCase() + ")."; };
+$("#setSave").onclick = () => { S.settings.condition = $("#setCond").value; S.settings.unit = $("#setUnit").value;
+  S.settings.stepGoal = Math.max(1000, Math.round(num($("#setGoal").value) || 7000)); S.settings.sodiumLimit = Math.max(500, Math.round(num($("#setSod").value) || 2000));
+  commit(); $("#syncNote").textContent = "Settings saved on this phone."; };
+$("#clearExamples").onclick = () => { clearExamples(); S._userActed = true; commit(); };
+
+/* ---------- Boot ---------- */
+S = normalize(loadLocal() || exampleState());
+render(); route();
+setInterval(() => { if (!$("#v-today").hidden) renderToday(); }, 60e3);
+
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+})();
+</script>
+
+</body>
+</html>
